@@ -18,10 +18,12 @@ and open <http://localhost:8000/thragg-the-unbreakable/>.
 
 ## Controls
 
+The game is played in first person: you look out through Thragg's one good eye, with his arms and the two-handed axe in front of you. Click the game once to capture the mouse; Esc releases it (the game pauses until you click again).
+
 | Key | Action |
 | --- | --- |
-| W A S D | Move |
-| Mouse | Aim |
+| W A S D | Move (relative to where you are looking) |
+| Mouse | Look |
 | Left click | Swing the axe. Three swings chain into an overhead chop. |
 | Q | Whirlwind: spin and cleave everything around you (cooldown) |
 | Space | Lunge: a short burst of speed; you cannot be hit while lunging |
@@ -30,7 +32,7 @@ and open <http://localhost:8000/thragg-the-unbreakable/>.
 | 2 (hold) | The Burna. Unlocked after round 3. |
 | 3 | The Rokkit Launcha. Unlocked after round 4. |
 
-Kills heal you a little. Blood is a resource.
+Kills heal you a little. Blood is a resource. Only kills Thragg makes himself count towards the quota: enemies that walk into molten iron or get caught in an exploding drum are their own problem.
 
 ## Rounds
 
@@ -55,7 +57,8 @@ Meeting the quota adds 20 seconds to the clock for the mini-boss. Run out of tim
   - **Squish Sounds Effects** by EZduzziteh, CC0. [Source](https://opengameart.org/content/squish-sounds-effects)
   - **Fireplace Sound loop** by PagDev, CC0 (a 3.5-second slice, converted to AAC). [Source](https://opengameart.org/content/fireplace-sound-loop)
 - Keyboard and mouse only for now. Touch controls for iPad and iPhone are planned.
+- Thragg shouts on kill streaks, whirlwinds and boss arrivals; enemies get last words as they die.
 
 ## Testing shortcuts
 
-Add these to the address bar if you want to jump about while tweaking things: `?round=3` starts at round 3 with the earlier weapons unlocked, `?god` makes Thragg unkillable and multiplies his damage, `?close` pulls the camera in for a look at the models. For example `index.html?round=5&god`.
+Add these to the address bar if you want to jump about while tweaking things: `?round=3` starts at round 3 with the earlier weapons unlocked, `?god` makes Thragg unkillable and multiplies his damage, `?third` switches to the older third-person camera, `?nolock` skips mouse capture (for automated testing). For example `index.html?round=5&god`.
