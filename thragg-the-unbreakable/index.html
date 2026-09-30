@@ -722,8 +722,9 @@ function buildOrc(o = {}) {
     const leg = sx > 0 ? R.legR : R.legL; leg.add(meshOf(l)); leg.position.set(sx * .34, 1.15, 0);
   }
   // weapons
-  if (o.weapon === 'axe') { R.axe = makeAxe(1); R.handR.add(R.axe); R.axe.rotation.z = Math.PI + .3; }
-  if (o.weapon === 'dual') { R.axe = makeAxe(.7); R.handR.add(R.axe); R.axeL = makeAxe(.7); R.handL.add(R.axeL); R.axe.rotation.z = Math.PI + .35; R.axeL.rotation.z = Math.PI - .35; }
+  const carry = (axe, sx) => { axe.position.set(0, .85, -.05); axe.rotation.set(.35, 0, sx * .12); };
+  if (o.weapon === 'axe') { R.axe = makeAxe(1); R.handR.add(R.axe); carry(R.axe, 1); }
+  if (o.weapon === 'dual') { R.axe = makeAxe(.7); R.handR.add(R.axe); R.axeL = makeAxe(.7); R.handL.add(R.axeL); carry(R.axe, 1); carry(R.axeL, -1); }
   R.root.scale.setScalar(o.scale ?? .9);
   R.height = 3.0 * (o.scale ?? .9); R.radius = .9 * (o.scale ?? .9); R.headY = 2.7 * (o.scale ?? .9);
   return R;
@@ -818,7 +819,7 @@ function animateRig(R, dt, speed) {
   const br = Math.sin(t * 1.7 + A.seed), sw = Math.sin(t * .9 + A.seed);
   if (!A.lockArms) {
     R.armL.rotation.x = -s * .55 * m + .12 + br * .04; R.armR.rotation.x = s * .55 * m + .05 + br * .04;
-    R.armL.rotation.z = .32 + br * .04; R.armR.rotation.z = -.42 - br * .04;
+    R.armL.rotation.z = -.2 - br * .04; R.armR.rotation.z = .24 + br * .04;
   }
   if (!A.lockTorsoY) R.torso.rotation.y = sw * .05 * (1 - m);
   R.torso.scale.setScalar(1 + br * .012);
@@ -828,7 +829,7 @@ function animateRig(R, dt, speed) {
 function hugPose(R, k) {
   R.anim.lockArms = k > 0;
   R.armL.rotation.x = lerp(R.armL.rotation.x, -1.4, k); R.armR.rotation.x = lerp(R.armR.rotation.x, -1.4, k);
-  R.armL.rotation.z = lerp(R.armL.rotation.z, .9, k); R.armR.rotation.z = lerp(R.armR.rotation.z, -.9, k);
+  R.armL.rotation.z = lerp(R.armL.rotation.z, -.55, k); R.armR.rotation.z = lerp(R.armR.rotation.z, .55, k);
   R.head.rotation.x = lerp(R.head.rotation.x, .25, k);
 }
 
@@ -917,7 +918,7 @@ const aim = V3(0, 1, 5);
 const G = {
   state: 'title', round: 0, time: 0, kills: 0, totalKills: 0, quota: 0, boss: null, bossPending: false,
   unlocked: { throw: false, shoota: false, burna: false, rokkit: false },
-  perks: { hp: 100, swingSpeed: 1, heal: 2, reach: 0, whirlCd: 6, dmg: 1 },
+  perks: { hp: 100, swingSpeed: 1, heal: 3, reach: 0, whirlCd: 6, dmg: 1 },
   spawnT: 0, roundTime: 0, elapsed: 0,
 };
 const enemies = []; const projectiles = []; const props = [];
@@ -955,9 +956,13 @@ function updatePlayer(dt) {
   R.root.position.copy(P.pos); R.root.rotation.y = Math.atan2(P.face.x, P.face.z);
   animateRig(R, dt, P.lunge > 0 ? 3 : mv.length() * (speed / 8.5) * 1.3);
   // the axe rides upright beside the shoulder until a swing brings it down and forward
-  if (R.axe && R.axe.parent === R.handR) { const want = (P.swing || P.whirl > 0) ? 0 : Math.PI + .3; R.axe.rotation.z = lerp(R.axe.rotation.z, want, Math.min(1, dt * 22)); }
+  if (R.axe && R.axe.parent === R.handR) {
+    const fighting = P.swing || P.whirl > 0, k = Math.min(1, dt * 20);
+    R.axe.position.y = lerp(R.axe.position.y, fighting ? 0 : .85, k); R.axe.position.z = lerp(R.axe.position.z, fighting ? 0 : -.05, k);
+    R.axe.rotation.x = lerp(R.axe.rotation.x, fighting ? 0 : .35, k); R.axe.rotation.z = lerp(R.axe.rotation.z, fighting ? 0 : .12, k);
+  }
   if (P.invuln > 0) P.invuln -= dt; if (P.slow > 0) P.slow -= dt; if (P.hurtT > 0) P.hurtT -= dt;
-  if (P.held > 0) { P.held -= dt; if (Math.random() < .3) damagePlayer(1.2, null, true); }
+  if (P.held > 0) { P.held -= dt; if (Math.random() < .3) damagePlayer(.6, null, true); }
   // hazards
   for (const h of hazards) if (h.kind === 'lava' && Math.abs(P.pos.x - h.x) < h.w / 2 && Math.abs(P.pos.z - h.z) < h.d / 2) { damagePlayer(28 * dt, null, true); P.vel.add(V3(P.pos.x - h.x, 0, P.pos.z - h.z).normalize().multiplyScalar(2)); if (Math.random() < .5) fire.emit(P.pos.clone().add(V3(rand(-.5, .5), .3, rand(-.5, .5))), V3(0, 3, 0), .6, .8); }
   // melee combo
@@ -966,19 +971,19 @@ function updatePlayer(dt) {
   if (P.whirl > 0) {
     P.whirl -= dt; R.anim.lockArms = R.anim.lockTorsoY = true;
     const k = 1 - P.whirl / .7;
-    R.torso.rotation.y = k * Math.PI * 4; R.armR.rotation.x = -1.5; R.armR.rotation.z = -1.2; R.armL.rotation.x = -1.2; R.armL.rotation.z = 1.4; R.torso.rotation.x = .3;
+    R.torso.rotation.y = k * Math.PI * 4; R.armR.rotation.x = -1.5; R.armR.rotation.z = 1.2; R.armL.rotation.x = -1.2; R.armL.rotation.z = -1.4; R.torso.rotation.x = .3;
     if (Math.random() < .5) sparks.emit(worldPos(R.axe, V3(0, -1.2, 0)), V3(rand(-2, 2), rand(0, 2), rand(-2, 2)), .25, .8);
     if (!P.whirlHit && k > .25) { P.whirlHit = true; meleeHit(3.7 + G.perks.reach, Math.PI * 2, 70 * G.perks.dmg, 9); addShake(.5); }
   } else if (P.swing) {
     const s = P.swing; s.t += dt * G.perks.swingSpeed * 3.4; R.anim.lockArms = R.anim.lockTorsoY = true;
     const k = Math.min(1, s.t), e = ease(k);
     if (s.type === 'chop') { // overhead
-      R.torso.rotation.y = 0; R.armR.rotation.z = -.2; R.armL.rotation.x = -.6; R.armL.rotation.z = .5;
+      R.torso.rotation.y = 0; R.armR.rotation.z = .2; R.armL.rotation.x = -.6; R.armL.rotation.z = -.5;
       R.armR.rotation.x = k < .35 ? lerp(-.2, -3.1, k / .35) : lerp(-3.1, -.9, ease((k - .35) / .65));
       R.torso.rotation.x = k < .35 ? lerp(.1, -.25, k / .35) : lerp(-.25, .55, (k - .35) / .65);
     } else {
       const dir = s.type === 'left' ? 1 : -1;
-      R.armR.rotation.x = -1.55; R.armR.rotation.z = -.15; R.armL.rotation.x = -.8; R.armL.rotation.z = .6;
+      R.armR.rotation.x = -1.55; R.armR.rotation.z = .15; R.armL.rotation.x = -.8; R.armL.rotation.z = -.6;
       R.torso.rotation.y = dir * lerp(-1.3, 1.3, e); R.torso.rotation.x = .25;
     }
     if (!s.hit && k > .38) { s.hit = true; const dmg = (s.type === 'chop' ? 55 : 36) * G.perks.dmg; meleeHit(3.0 + G.perks.reach, s.type === 'chop' ? 1.1 : 2.4, dmg, s.type === 'chop' ? 10 : 6, s.type === 'chop'); if (!P.axeOut) sfx('swing', .8); }
@@ -1002,9 +1007,9 @@ function updatePlayer(dt) {
   fireLoop(P.burnaOn);
   if (P.rokkitCd > 0) P.rokkitCd -= dt;
   if (keys.Digit3 && G.unlocked.rokkit && P.rokkitCd <= 0 && !playerHeld()) { setGun('rokkit'); fireRokkit(); }
-  if (P.gun && (keys.Digit1 || keys.Digit2 || keys.Digit3)) { R.anim.lockArms = true; R.armL.rotation.x = -1.5; R.armL.rotation.z = .15; }
+  if (P.gun && (keys.Digit1 || keys.Digit2 || keys.Digit3)) { R.anim.lockArms = true; R.armL.rotation.x = -1.5; R.armL.rotation.z = -.15; }
   // regen a sliver while calm; blood-drenched armour glows when kills are high
-  if (P.hurtT <= 0) P.hp = Math.min(P.maxHp, P.hp + dt * .8);
+  if (P.hurtT <= 0) P.hp = Math.min(P.maxHp, P.hp + dt * 2);
 }
 function playerFwd() { return P.face.clone(); }
 function axeTip() { return P.rig.axe && P.rig.axe.parent ? worldPos(P.rig.axe, V3(0, -1.1, 0)) : P.pos.clone().add(V3(0, 1.5, 0)); }
@@ -1023,7 +1028,7 @@ function meleeHit(range, arc, dmg, knock, heavy = false) {
 }
 function damagePlayer(n, from, silent = false) {
   if (P.dead || DEBUG_GOD || P.invuln > 0 && !silent) return;
-  P.hp -= n; P.hurtT = 2.5;
+  P.hp -= n; P.hurtT = 2.5; if (!silent) P.invuln = Math.max(P.invuln, .45);
   if (!silent) { sfx('hurt', .7); addShake(.35); $('vignette').style.boxShadow = 'inset 0 0 160px rgba(200,0,0,.75)'; setTimeout(() => $('vignette').style.boxShadow = 'inset 0 0 160px rgba(200,0,0,0)', 220); bloodBurst(P.pos.clone().add(V3(0, 1.6, 0)), 8, 4, from ? from.clone().negate() : null); }
   if (P.hp <= 0) { P.hp = 0; playerDies(); }
 }
@@ -1086,7 +1091,7 @@ function updateProjectiles(dt) {
     if (pr.kind === 'axe') {
       const speed = 26; pr.spin += dt * 25;
       if (pr.phase === 'out') { pr.pos.addScaledVector(pr.dir, dt * speed); pr.dist += dt * speed; if (pr.dist >= pr.max || clampArena(pr.pos, .5)) { pr.phase = 'back'; pr.hit.clear(); } }
-      else { const hand = worldPos(P.rig.handR); const d = hand.clone().sub(pr.pos); if (d.length() < 1.2) { scene.remove(pr.m); P.rig.handR.add(pr.m); pr.m.position.set(0, 0, 0); pr.m.rotation.set(0, 0, 0); P.axeOut = false; P.throwCd = .4; projectiles.splice(i, 1); sfx('clink', .8); continue; } pr.pos.addScaledVector(d.normalize(), dt * speed * 1.2); }
+      else { const hand = worldPos(P.rig.handR); const d = hand.clone().sub(pr.pos); if (d.length() < 1.2) { scene.remove(pr.m); P.rig.handR.add(pr.m); pr.m.position.set(0, .85, -.05); pr.m.rotation.set(.35, 0, .12); P.axeOut = false; P.throwCd = .4; projectiles.splice(i, 1); sfx('clink', .8); continue; } pr.pos.addScaledVector(d.normalize(), dt * speed * 1.2); }
       pr.m.position.copy(pr.pos).setY(1.3); pr.m.rotation.set(Math.PI / 2, 0, pr.spin); pr.m.rotation.order = 'YXZ'; pr.m.rotation.y = Math.atan2(pr.dir.x, pr.dir.z);
       for (const e of enemies) { if (e.dead || pr.hit.has(e)) continue; if (Math.hypot(e.pos.x - pr.pos.x, e.pos.z - pr.pos.z) < e.rig.radius + 1.3) { pr.hit.add(e); damageEnemy(e, 60 * G.perks.dmg, pr.dir.clone().multiplyScalar(6), 'slash'); sfx('squelch', .8); } }
       for (const p2 of props) if (p2.hp > 0 && p2.explosive && p2.m.position.distanceTo(pr.pos) < 1.6) damageProp(p2, 60);
@@ -1105,30 +1110,33 @@ function updateProjectiles(dt) {
 const SUITS = [0xf7a8c4, 0xc9a8f7, 0xa8d8f7, 0xa8f7c8, 0xfff0b0, 0xffc8a0, 0xffffff, 0xd0d0d0];
 const CULT_LINES = ['hewwo :3', 'free hugs?', 'OwO what\'s this', 'let me nuzzle you', 'we just want to be soft', 'join the warren', 'you smell like a friend', 'hold still, it\'s cuddle time', 'boop', 'UwU', 'pet me. PET ME.', '*wags menacingly*', 'the suit breathes for me now', 'no bites, promise', 'it\'s warm in here'];
 const PELT_LINES = ['Me dog now. Woof. WOOF.', 'Thragg! Join da pack! Is warm in here!', 'Dey scratched me behind da ear, Thragg.', 'I IS A GOOD BOY.', 'Why you not wag, Thragg? WAG.', 'Da fur is soft, brudda. Soft.', 'Nobody ever pet me before.', 'Sit. SIT, Thragg.'];
+const DEATH_LINES = ['oh no. woof.', 'I\'m too cute to die', 'but I\'m cuddly...', 'tell my fursona I loved her', 'not the face, it\'s rented', 'hewwo... goodbye', '*dies softly*', 'who will pet me now', 'worth it :3', 'I regret the suit', 'this is not what the forum said', 'do I still get the badge', 'mum was right', 'nooo my paws', 'I only wanted a hug', 'OwO... *dead*', 'I can\'t feel my tail', 'unzip me. UNZIP ME.'];
+const PELT_DEATH_LINES = ['Woof... ugh.', 'Tell da pack... I was good boy.', 'Should\'ve wagged...', 'Me not dog. Me sorry, Thragg.', 'Da ear scratches... worth it.', 'Bad boy. I is bad boy.'];
+const BOSS_DEATH_LINES = { steve: 'bye', jeffrey: 'mrrp...', alexander: 'ALEXANDER... NOT HUSKY... ANYMORE.', nigel: '*blinks*', gary: 'the suit... take it off me... no. leave it.' };
 const SIGNS = ['FREE\nHUGS', 'OwO', 'HUG\nME', 'JOIN\nUS', 'PET\nME', 'UwU', 'SOFT', 'no bites\n:3', 'nuzzle\nzone'];
 function spawnPos() { const a = rand(6.3); return V3(Math.cos(a) * (ARENA_R - 1.5), 0, Math.sin(a) * (ARENA_R - 1.5)); }
 function spawnEnemy(kind, pos) {
   let rig, e;
-  const base = { kind, pos: pos || spawnPos(), vel: V3(), hp: 30, maxHp: 30, speed: rand(3.2, 4.4), state: 'chase', t: 0, dead: false, burning: 0, dmg: 9, reach: 1.6, windup: .55, lunge: .28, lungeSpeed: 16, atkCd: 0, sayT: rand(1, 6), lines: CULT_LINES, orc: false, boss: false, counts: true, stagger: 0, face: V3(0, 0, 1), name: '' };
+  const base = { kind, pos: pos || spawnPos(), vel: V3(), hp: 30, maxHp: 30, speed: rand(3.2, 4.4), state: 'chase', t: 0, dead: false, burning: 0, dmg: 6, reach: 1.6, windup: .6, lunge: .28, lungeSpeed: 16, atkCd: 0, sayT: rand(1, 6), lines: CULT_LINES, orc: false, boss: false, counts: true, stagger: 0, face: V3(0, 0, 1), name: '' };
   if (kind === 'cultist') {
     const ears = pick(['bunny', 'cat', 'fox', 'dog', 'bunny', 'cat']);
     rig = buildCultist({ suit: pick(SUITS), ears, sign: Math.random() < .3 ? pick(SIGNS) : null, scale: rand(.66, .78), whiskers: ears === 'cat' && Math.random() < .5 });
     e = { ...base, rig };
   } else if (kind === 'big') {
     rig = buildCultist({ suit: pick(SUITS), ears: pick(['bunny', 'dog', 'fox']), scale: .98, belly: true });
-    e = { ...base, rig, hp: 85, maxHp: 85, speed: rand(2.4, 3), dmg: 18, reach: 2.2, windup: .8 };
+    e = { ...base, rig, hp: 85, maxHp: 85, speed: rand(2.4, 3), dmg: 11, reach: 2.2, windup: .85 };
   } else if (kind === 'pelt') {
     rig = buildOrc({ scale: .82, scar: false, pelt: { hood: pick(SUITS), ears: pick(['dog', 'fox']), inner: 0xffffff }, weapon: Math.random() < .5 ? 'axe' : 'none', bloody: .2 });
-    e = { ...base, rig, hp: 110, maxHp: 110, speed: rand(3.4, 4), dmg: 16, reach: 2.4, windup: .6, lines: PELT_LINES, orc: true, sayT: rand(.2, 1.5) };
+    e = { ...base, rig, hp: 110, maxHp: 110, speed: rand(3.4, 4), dmg: 11, reach: 2.4, windup: .65, lines: PELT_LINES, orc: true, sayT: rand(.2, 1.5) };
   }
   e.rig.root.position.copy(e.pos); scene.add(e.rig.root); enemies.push(e); return e;
 }
 const BOSSES = {
-  steve: { name: 'STEVE', sub: 'he wants to be friends', hp: 420, build: () => buildCultist({ suit: 0xb8b8b8, ears: 'bunny', flop: true, scale: 1.55, belly: true, face: 0xf0c8b8 }), speed: 2.6, dmg: 30, reach: 3.4, windup: 1.0, lungeSpeed: 20, lines: ['hi', 'hi', 'hi.', 'hi', 'hi :)', 'hi'], sayEvery: 3.5 },
-  jeffrey: { name: 'JEFFREY', sub: 'the whiskers are biro', hp: 560, build: () => buildCultist({ suit: 0xf0a060, ears: 'cat', whiskers: true, scale: 1.25, face: 0xe0b0a0 }), speed: 4.2, dmg: 22, reach: 2.6, windup: .6, lungeSpeed: 26, lunge: .45, lines: ['mrrp', '*purrs aggressively*', 'mrow?', 'i knead you', 'prrrrrt'], sayEvery: 4, special: 'purr' },
-  alexander: { name: 'ALEXANDER', sub: 'is husky now', hp: 780, build: () => buildOrc({ scale: 1.05, scar: false, pelt: { hood: 0xd8d8e0, ears: 'fox', inner: 0x333333 }, weapon: 'dual', bloody: .3, eye: 0x60c0ff }), speed: 4.6, dmg: 18, reach: 3, windup: .45, lungeSpeed: 22, lines: ['ALEXANDER IS HUSKY NOW.', 'Thragg! Feel da fur!', 'AWOOO (in orc)', 'Da suit chose me, brudda.', 'ALEXANDER GOOD BOY. YOU BAD BOY.'], sayEvery: 3, orc: true, special: 'spin' },
-  nigel: { name: 'NIGEL', sub: 'has not blinked since Tuesday', hp: 900, build: () => buildCultist({ suit: 0x8a6a48, ears: 'stag', scale: 1.1, stretch: 1.5, face: 0xf0e0d0, belly: false }), speed: 3.2, dmg: 34, reach: 3, windup: .9, lungeSpeed: 34, lunge: .7, lines: ['...', '*stares*', '...', '*does not blink*', '...'], sayEvery: 5, special: 'charge' },
-  gary: { name: 'GARY', sub: 'Alpha of the Fursworn', hp: 1900, build: () => buildCultist({ suit: 0x6e5a48, ears: 'wolf', scale: 1.9, belly: true, mangy: true, mangyColor: 0x3a2a1c, led: 0x40e0ff, face: 0xe8a898 }), speed: 3.0, dmg: 26, reach: 3.8, windup: .9, lungeSpeed: 22, lines: ['COME TO ALPHA.', 'The pack accepts you.', 'AWOOOOOO', 'It\'s warm in the suit, Thragg. So warm.', 'I have not taken it off in nine years.'], sayEvery: 4, special: 'howl' },
+  steve: { name: 'STEVE', sub: 'he wants to be friends', hp: 420, build: () => buildCultist({ suit: 0xb8b8b8, ears: 'bunny', flop: true, scale: 1.55, belly: true, face: 0xf0c8b8 }), speed: 2.6, dmg: 16, reach: 3.4, windup: 1.1, lungeSpeed: 20, lines: ['hi', 'hi', 'hi.', 'hi', 'hi :)', 'hi'], sayEvery: 3.5 },
+  jeffrey: { name: 'JEFFREY', sub: 'the whiskers are biro', hp: 560, build: () => buildCultist({ suit: 0xf0a060, ears: 'cat', whiskers: true, scale: 1.25, face: 0xe0b0a0 }), speed: 4.2, dmg: 14, reach: 2.6, windup: .65, lungeSpeed: 26, lunge: .45, lines: ['mrrp', '*purrs aggressively*', 'mrow?', 'i knead you', 'prrrrrt'], sayEvery: 4, special: 'purr' },
+  alexander: { name: 'ALEXANDER', sub: 'is husky now', hp: 780, build: () => buildOrc({ scale: 1.05, scar: false, pelt: { hood: 0xd8d8e0, ears: 'fox', inner: 0x333333 }, weapon: 'dual', bloody: .3, eye: 0x60c0ff }), speed: 4.6, dmg: 12, reach: 3, windup: .5, lungeSpeed: 22, lines: ['ALEXANDER IS HUSKY NOW.', 'Thragg! Feel da fur!', 'AWOOO (in orc)', 'Da suit chose me, brudda.', 'ALEXANDER GOOD BOY. YOU BAD BOY.'], sayEvery: 3, orc: true, special: 'spin' },
+  nigel: { name: 'NIGEL', sub: 'has not blinked since Tuesday', hp: 900, build: () => buildCultist({ suit: 0x8a6a48, ears: 'stag', scale: 1.1, stretch: 1.5, face: 0xf0e0d0, belly: false }), speed: 3.2, dmg: 22, reach: 3, windup: .9, lungeSpeed: 34, lunge: .7, lines: ['...', '*stares*', '...', '*does not blink*', '...'], sayEvery: 5, special: 'charge' },
+  gary: { name: 'GARY', sub: 'Alpha of the Fursworn', hp: 1900, build: () => buildCultist({ suit: 0x6e5a48, ears: 'wolf', scale: 1.9, belly: true, mangy: true, mangyColor: 0x3a2a1c, led: 0x40e0ff, face: 0xe8a898 }), speed: 3.0, dmg: 18, reach: 3.8, windup: 1.0, lungeSpeed: 22, lines: ['COME TO ALPHA.', 'The pack accepts you.', 'AWOOOOOO', 'It\'s warm in the suit, Thragg. So warm.', 'I have not taken it off in nine years.'], sayEvery: 4, special: 'howl' },
 };
 function spawnBoss(key) {
   const B = BOSSES[key]; const rig = B.build();
@@ -1172,7 +1180,7 @@ function updateEnemies(dt) {
       const d2 = Math.hypot(P.pos.x - e.pos.x, P.pos.z - e.pos.z);
       if (!e.hitDone && d2 < e.reach + .4) {
         e.hitDone = true; damagePlayer(e.dmg, e.lungeDir);
-        if (e.hug && P.invuln <= 0) { P.held = 1.3; say(e.rig, e.kind === 'gary' ? 'SQUEEZE.' : 'hug!', false, 1.3); }
+        if (e.hug && P.invuln <= 0) { P.held = .8; say(e.rig, e.kind === 'gary' ? 'SQUEEZE.' : 'hug!', false, 1.3); }
       }
       if (e.t > e.lunge) { e.state = 'recover'; e.t = 0; }
     } else if (e.state === 'recover') { hugPose(R, Math.max(0, 1 - e.t / .3)); if (e.t > .6) { e.state = 'chase'; e.atkCd = e.boss ? rand(.6, 1.2) : rand(.8, 1.8); R.anim.lockArms = false; } }
@@ -1183,9 +1191,9 @@ function updateEnemies(dt) {
       if (clampArena(e.pos, 1) || e.t > 1.6) { e.state = 'stunned'; e.t = 0; addShake(.7); sfx('hit', 1); sparkBurst(e.pos.clone().add(V3(0, 2, 0)), 20); }
     } else if (e.state === 'stunned') { R.head.rotation.z = Math.sin(e.t * 12) * .3; if (e.t > 2) { e.state = 'chase'; R.head.rotation.z = 0; e.atkCd = 1; } }
     else if (e.state === 'spin') {
-      R.anim.lockTorsoY = R.anim.lockArms = true; R.torso.rotation.y = e.t * 18; R.armR.rotation.x = R.armL.rotation.x = -1.5; R.armR.rotation.z = -1.3; R.armL.rotation.z = 1.3;
+      R.anim.lockTorsoY = R.anim.lockArms = true; R.torso.rotation.y = e.t * 18; R.armR.rotation.x = R.armL.rotation.x = -1.5; R.armR.rotation.z = 1.3; R.armL.rotation.z = -1.3;
       e.pos.addScaledVector(dirP, dt * 5); speed = 2;
-      if (dist < 3.6 && e.t % .35 < dt) damagePlayer(10, dirP);
+      if (dist < 3.6 && e.t % .35 < dt) damagePlayer(6, dirP);
       if (e.t > 1.6) { e.state = 'chase'; R.anim.lockTorsoY = R.anim.lockArms = false; e.atkCd = 1.2; }
     } else if (e.state === 'howl') { R.head.rotation.x = -.7; hugPose(R, 1); if (e.t > 1.8) { e.state = 'chase'; R.anim.lockArms = false; } }
     else if (e.state === 'purr') { R.torso.rotation.z = Math.sin(e.t * 40) * .05; if (e.t > 1.5) { e.state = 'chase'; R.torso.rotation.z = 0; } }
@@ -1236,7 +1244,10 @@ function killEnemy(e, kind) {
   R.anim.lockArms = false; hugPose(R, 0);
   if (e.counts) { G.kills++; G.totalKills++; P.hp = Math.min(P.maxHp, P.hp + G.perks.heal); if (Math.hypot(e.pos.x - P.pos.x, e.pos.z - P.pos.z) < 4.5 && kind !== 'burn' && kind !== 'melt') screenSplat(); }
   else { G.totalKills++; onBossDead(e); }
-  const fling = (part, power = 1) => detach(R, part, hitDir.clone().multiplyScalar(rand(4, 9) * power).add(V3(rand(-3, 3), rand(5, 10) * power, rand(-3, 3))), rand(4, 10));
+  let flungHead = null;
+  const fling = (part, power = 1) => { const d = detach(R, part, hitDir.clone().multiplyScalar(rand(4, 9) * power).add(V3(rand(-3, 3), rand(5, 10) * power, rand(-3, 3))), rand(4, 10)); if (part === 'head') flungHead = d; return d; };
+  // last words, from the corpse or from wherever the head lands
+  setTimeout(() => { const line = e.boss ? BOSS_DEATH_LINES[e.kind] : pick(e.orc ? PELT_DEATH_LINES : DEATH_LINES); const anchor = flungHead && flungHead.parent ? { root: flungHead, headY: .2 } : { root: R.root, headY: e.rig.height * .35 }; if (anchor.root.parent && Math.random() < (e.boss ? 1 : .75)) say(anchor, line, e.orc, 2.4); }, 60);
   if (kind === 'melt') {
     for (let i = 0; i < 30; i++) sparks.emit(e.pos.clone().add(V3(rand(-.5, .5), .2, rand(-.5, .5))), V3(rand(-3, 3), rand(2, 8), rand(-3, 3)), .5, 1.2);
     for (let i = 0; i < 10; i++) smoke.emit(e.pos, V3(rand(-1, 1), 3, rand(-1, 1)), 1.5, 2);
@@ -1395,7 +1406,7 @@ const UNLOCK_TEXT = { throw: ['AXE THROW', 'E or right click. It comes back. The
 const PERKS = [
   { n: 'THICKER HIDE', d: '+35 max health, and heal to full now.', f: () => { G.perks.hp += 35; P.maxHp = G.perks.hp; P.hp = P.maxHp; } },
   { n: 'FRENZY', d: 'Swing 30% faster.', f: () => G.perks.swingSpeed *= 1.3 },
-  { n: 'BLOODBATH', d: 'Each kill heals +4 more.', f: () => G.perks.heal += 4 },
+  { n: 'BLOODBATH', d: 'Each kill heals +5 more.', f: () => G.perks.heal += 5 },
   { n: 'LONG REACH', d: 'Your axe reaches further.', f: () => G.perks.reach += .7 },
   { n: 'BRUTALITY', d: '+30% damage with everything.', f: () => G.perks.dmg *= 1.3 },
   { n: 'IRON LUNGS', d: 'Whirlwind recharges twice as fast.', f: () => G.perks.whirlCd *= .5 },
@@ -1447,7 +1458,7 @@ function endGame(win, why) {
   $('gameover').classList.add('show');
 }
 function resetGame() {
-  G.unlocked = { throw: false, shoota: false, burna: false, rokkit: false }; G.perks = { hp: 100, swingSpeed: 1, heal: 2, reach: 0, whirlCd: 6, dmg: 1 }; G.totalKills = 0; P.maxHp = 100; P.dead = false; drumOn = true;
+  G.unlocked = { throw: false, shoota: false, burna: false, rokkit: false }; G.perks = { hp: 100, swingSpeed: 1, heal: 3, reach: 0, whirlCd: 6, dmg: 1 }; G.totalKills = 0; P.maxHp = 100; P.dead = false; drumOn = true;
   $('gameover').classList.remove('show');
   if (DEBUG_ROUND > 0) { for (let i = 0; i < DEBUG_ROUND; i++) if (ROUNDS[i].unlock) G.unlocked[ROUNDS[i].unlock] = true; }
   if (DEBUG_GOD) G.perks.dmg = 25;
