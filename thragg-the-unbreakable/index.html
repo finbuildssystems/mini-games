@@ -154,7 +154,6 @@ function audioInit() {
   master = AC.createGain(); master.gain.value = 0.32; master.connect(AC.destination);
   loadSamples(); AC.resume();
   const comp = AC.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 6; master.disconnect(); master.connect(comp); comp.connect(AC.destination);
-  drumLoop();
 }
 function noiseBuf(len = 1) {
   const b = AC.createBuffer(1, AC.sampleRate * len, AC.sampleRate);
@@ -264,7 +263,30 @@ const SAMPLE_SETS = {
   shot: ['shot_01', 'shot_02', 'shot_03'], bang: ['bang_01', 'bang_02', 'bang_03', 'bang_04'], cannon: ['cannon_01', 'cannon_02', 'cannon_03'],
   squish: ['squish_01.mp3', 'squish_02.mp3', 'squish_03.mp3', 'squish_04.mp3', 'squish_05.mp3', 'squish_06.mp3'], splat: ['squishpop.mp3', 'squishsplat_impact.mp3'],
   fire: ['fire_loop.m4a'],
+  musicDrums: ['music_drums.m4a'], musicBossIntro: ['music_boss_intro.m4a'], musicBossLoop: ['music_boss_loop.m4a'],
 };
+// ---------- music: war drums for the rounds, symphonic metal when a boss shows up ----------
+const MUSIC = { gain: null, srcs: [], kind: null, want: null };
+function musicStop(fade = 1.2) {
+  if (!MUSIC.gain) return;
+  const g = MUSIC.gain, srcs = MUSIC.srcs; MUSIC.gain = null; MUSIC.srcs = []; MUSIC.kind = null;
+  g.gain.setValueAtTime(g.gain.value, AC.currentTime); g.gain.linearRampToValueAtTime(0, AC.currentTime + fade);
+  setTimeout(() => srcs.forEach(s => { try { s.stop(); } catch (e) {} }), fade * 1000 + 50);
+}
+function musicPlay(kind) {
+  MUSIC.want = kind;
+  if (!AC || MUSIC.kind === kind) return;
+  const loopSet = kind === 'boss' ? 'musicBossLoop' : 'musicDrums', introSet = kind === 'boss' ? 'musicBossIntro' : null;
+  const loop = SAMPLES[loopSet] && SAMPLES[loopSet][0], intro = introSet && SAMPLES[introSet] && SAMPLES[introSet][0];
+  if (!loop) { setTimeout(() => { if (MUSIC.want === kind) musicPlay(kind); }, 500); return; }   // still loading
+  musicStop(kind === 'boss' ? .4 : 1.5);
+  const g = AC.createGain(); g.gain.setValueAtTime(0, AC.currentTime); g.gain.linearRampToValueAtTime(kind === 'boss' ? .55 : .42, AC.currentTime + 1); g.connect(master);
+  const t0 = AC.currentTime + .05, srcs = [];
+  let loopAt = t0;
+  if (intro) { const i = AC.createBufferSource(); i.buffer = intro; i.connect(g); i.start(t0); srcs.push(i); loopAt = t0 + intro.duration; }
+  const l = AC.createBufferSource(); l.buffer = loop; l.loop = true; l.connect(g); l.start(loopAt); srcs.push(l);
+  MUSIC.gain = g; MUSIC.srcs = srcs; MUSIC.kind = kind;
+}
 const SAMPLES = {}; const lastPlay = {};
 function loadSamples() {
   for (const [set, names] of Object.entries(SAMPLE_SETS)) {
@@ -1349,7 +1371,7 @@ function spawnBoss(key) {
   rig.root.position.copy(pos); scene.add(rig.root); enemies.push(e); G.boss = e;
   $('bosswrap').style.display = 'block'; $('bossname').textContent = B.name + ' — ' + B.sub.toUpperCase();
   const nc = $('namecard'); nc.querySelector('.nm').textContent = B.name; nc.querySelector('.sb').textContent = B.sub; nc.style.opacity = 1; setTimeout(() => nc.style.opacity = 0, 2600);
-  sfx(key === 'gary' ? 'howl' : 'roar', 1); riftLight.intensity = 30; addShake(.6); setTimeout(() => shout(true, key === 'gary' ? 'GARY. ME BEEN WAITING.' : key === 'alexander' ? 'ALEXANDER. YOU WAS ORC.' : null), 2600);
+  sfx(key === 'gary' ? 'howl' : 'roar', 1); riftLight.intensity = 30; addShake(.6); musicPlay('boss'); setTimeout(() => shout(true, key === 'gary' ? 'GARY. ME BEEN WAITING.' : key === 'alexander' ? 'ALEXANDER. YOU WAS ORC.' : null), 2600);
   for (let i = 0; i < 60; i++) confetti.emit(pos.clone().add(V3(rand(-3, 3), rand(4, 8), rand(-3, 3))), V3(rand(-2, 2), rand(-1, 1), rand(-2, 2)), rand(2, 4), 1);
   return e;
 }
@@ -1643,18 +1665,18 @@ function startRound(i) {
   for (const id of ['throw', 'shoota', 'burna', 'rokkit']) $('s-' + id).classList.toggle('on', G.unlocked[id]);
   if (Rd.quota === 0) { banner('THE ALPHA', ARENAS[Rd.arena].name); setTimeout(() => { if (G.state === 'play') spawnBoss(Rd.boss); }, 1800); }
   else banner('ROUND ' + (i + 1), ARENAS[Rd.arena].name);
-  yaw = Math.PI; pitch = 0; P.face.set(0, 0, -1); updateLockOverlay();
+  yaw = Math.PI; pitch = 0; P.face.set(0, 0, -1); updateLockOverlay(); musicPlay('drums');
   if (GALLERY) { const kinds = ['cultist', 'cultist', 'big', 'pelt', 'cultist', 'cultist']; kinds.forEach((k, i) => { const e = spawnEnemy(k, V3(-3.2 + i * 1.3, 0, 2.6)); e.state = 'pose'; e.face.set(0, 0, 1); }); const b = spawnBoss(Rd.boss); b.state = 'pose'; b.pos.set(0, 0, -2); b.face.set(0, 0, 1); }
   setTimeout(() => shout(true), 900);
 }
 function onBossDead(e) {
-  G.boss = null; $('bosswrap').style.display = 'none'; sfx('ding', 1); riftLight.intensity = 4;
+  G.boss = null; $('bosswrap').style.display = 'none'; sfx('ding', 1); riftLight.intensity = 4; musicStop(2);
   for (let i = 0; i < 80; i++) confetti.emit(e.pos.clone().add(V3(0, 4, 0)), V3(rand(-6, 6), rand(2, 8), rand(-6, 6)), rand(2, 4), 1);
   if (e.kind === 'gary') { setTimeout(() => endGame(true), 2500); return; }
   setTimeout(() => { if (G.state === 'play') roundWon(); }, 1800);
 }
 function roundWon() {
-  G.state = 'roundend'; const Rd = ROUNDS[G.round]; if (document.pointerLockElement) document.exitPointerLock(); updateLockOverlay();
+  G.state = 'roundend'; musicStop(1.5); const Rd = ROUNDS[G.round]; if (document.pointerLockElement) document.exitPointerLock(); updateLockOverlay();
   const u = Rd.unlock; if (u) { G.unlocked[u] = true; $('unlock').innerHTML = `NEW: ${UNLOCK_TEXT[u][0]}<small>${UNLOCK_TEXT[u][1]}</small>`; }
   const pool = [...PERKS].sort(() => Math.random() - .5).slice(0, 3);
   $('cards').innerHTML = pool.map((p, i) => `<div class="card" data-i="${i}"><h3>${p.n}</h3><p>${p.d}</p></div>`).join('');
@@ -1667,7 +1689,7 @@ function playerDies() {
   setTimeout(() => endGame(false, 'broken'), 2200);
 }
 function endGame(win, why) {
-  G.state = 'over'; drumOn = false; fireLoop(false); if (document.pointerLockElement) document.exitPointerLock(); updateLockOverlay();
+  G.state = 'over'; drumOn = false; fireLoop(false); musicStop(2.5); if (document.pointerLockElement) document.exitPointerLock(); updateLockOverlay();
   $('go-title').textContent = win ? 'UNBROKEN' : why === 'time' ? 'OVERRUN' : 'BROKEN';
   $('go-text').textContent = win ? 'Gary is in several pieces and the rift is closing. The Fursworn are fleeing back into the pink. The Iron Wastes stink of blood and glitter, and they are yours.' : why === 'time' ? 'The horde was too many. They wrapped you in fleece and carried you, still swinging, through the rift. Nobody knows what happened next. Nobody wants to.' : 'Thragg the Unbreakable has been broken. They are already zipping the suit up over what is left of you.';
   $('stats').innerHTML = `ROUND ${G.round + 1} &nbsp;·&nbsp; ${G.totalKills} SLAUGHTERED`;
