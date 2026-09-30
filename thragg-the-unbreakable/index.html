@@ -291,6 +291,28 @@ function fireLoop(on) {
     g.gain.setValueAtTime(g.gain.value, AC.currentTime); g.gain.linearRampToValueAtTime(0, AC.currentTime + .25); src.stop(AC.currentTime + .3);
   }
 }
+// ---------- spoken lines: the browser's own speech voices, pitched up for the Fursworn ----------
+const TTS = { ok: 'speechSynthesis' in window, voice: null, muted: false, last: 0, deep: null };
+function pickVoices() {
+  if (!TTS.ok) return;
+  const vs = speechSynthesis.getVoices(); if (!vs.length) return;
+  const en = vs.filter(v => /^en/i.test(v.lang));
+  const prefer = ['Daniel', 'Eddy (English (UK))', 'Eddy', 'Reed (English (UK))', 'Reed', 'Rocko (English (UK))', 'Rocko', 'Google UK English Male', 'Alex', 'Fred', 'Microsoft George', 'Microsoft David'];
+  TTS.voice = prefer.map(n => en.find(v => v.name === n || v.name.startsWith(n))).find(Boolean) || en.find(v => /male|man|daniel|george|david|james|oliver/i.test(v.name)) || en[0] || vs[0];
+  TTS.deep = ['Grandpa (English (UK))', 'Grandpa', 'Fred', 'Daniel', 'Alex', 'Google UK English Male'].map(n => en.find(v => v.name.startsWith(n))).find(Boolean) || TTS.voice;
+}
+if (TTS.ok) { pickVoices(); speechSynthesis.onvoiceschanged = pickVoices; }
+// pitch 1.5-1.9 on a male voice gives the breathy, sing-song Fursworn delivery; bosses go the other way
+function speak(text, { pitch = 1.6, rate = 1.05, vol = 1, deep = false, gap = 350 } = {}) {
+  if (!TTS.ok || TTS.muted || !AC || !TTS.voice) return false;
+  const now = performance.now(); if (now - TTS.last < gap) return false; TTS.last = now;
+  if (speechSynthesis.pending) speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.replace(/[*_:3()]/g, '').replace(/OwO|UwU/g, m => m.split('').join(' ')));
+  u.voice = deep ? TTS.deep : TTS.voice; u.pitch = clamp(pitch * rand(.94, 1.06), 0, 2); u.rate = rate * rand(.95, 1.05); u.volume = vol * (master ? master.gain.value / .32 : 1);
+  speechSynthesis.speak(u); return true;
+}
+const HIT_LINES = ['ooh!', 'ah!', 'ouch!', 'hey!', 'not the fur!', 'ooh, again', 'rude!', 'oh my', 'mmf!', 'careful, that\'s velour', 'my tail!', 'ooh, harder'];
+const SPOKEN_DEATHS = ['oh no. I\'m dead.', 'I\'m dead. I\'m literally dead.', 'ohh... daddy...', 'woof... woof...', 'oh no. oh no no no.', 'I regret nothing. ooh.', 'tell them I died soft', 'unzip me... I need air...', 'is this... a hug?'];
 let drumOn = true;
 function drumLoop() {
   let step = 0;
@@ -324,7 +346,7 @@ const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.08, 4
 scene.add(camera);
 const QS = new URLSearchParams(location.search);
 const DEBUG_CLOSE = QS.has('close'), DEBUG_GOD = QS.has('god'), DEBUG_ROUND = +(QS.get('round') || 1) - 1;
-const FP = !QS.has('third'), NOLOCK = QS.has('nolock');   // first person unless ?third; ?nolock skips pointer lock (testing)
+const FP = !QS.has('third'), NOLOCK = QS.has('nolock'), GALLERY = QS.has('gallery');   // ?gallery lines enemies up in front of you for a look   // first person unless ?third; ?nolock skips pointer lock (testing)
 const CAM_OFF = DEBUG_CLOSE ? V3(0, 4.5, 6.5) : V3(0, 10.5, 10.5);
 
 const hemi = new THREE.HemisphereLight(0xffa060, 0x2a0806, 1.05); scene.add(hemi);
@@ -421,6 +443,55 @@ function textTexture(txt, bg = '#fff', fg = '#e0207a', font = 'bold 54px "Comic 
   x.fillStyle = bg; x.fillRect(0, 0, 512, 256); x.fillStyle = fg; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
   const lines = txt.split('\n'); lines.forEach((l, i) => x.fillText(l, 256, 128 + (i - (lines.length - 1) / 2) * 64));
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+// A sweaty, dazed human face for the inside of a hood. Every call is a different person.
+function faceTexture(o = {}) {
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const x = c.getContext('2d');
+  const skin = o.skin || pick([[240, 200, 180], [232, 186, 160], [214, 170, 140], [246, 214, 200], [200, 150, 120], [236, 190, 150]]);
+  const col = (k, a = 1) => `rgba(${Math.min(255, skin[0] * k) | 0},${Math.min(255, skin[1] * k) | 0},${Math.min(255, skin[2] * k) | 0},${a})`;
+  const ell = (cx, cy, rx, ry, style, rot = 0) => { x.fillStyle = style; x.beginPath(); x.ellipse(cx, cy, rx, ry, rot, 0, 6.3); x.fill(); };
+  const g = x.createRadialGradient(128, 110, 30, 128, 128, 170); g.addColorStop(0, col(1.06)); g.addColorStop(1, col(.78)); x.fillStyle = g; x.fillRect(0, 0, S, S);
+  for (let i = 0; i < 50; i++) ell(rand(S), rand(S), rand(6, 26), rand(4, 18), `rgba(${randi(150, 220)},${randi(40, 90)},${randi(50, 90)},${rand(.03, .11)})`, rand(3));
+  ell(72, 152, 30, 20, 'rgba(225,70,90,.32)'); ell(184, 152, 30, 20, 'rgba(225,70,90,.32)');   // flushed cheeks
+  if (o.stubble) for (let i = 0; i < 700; i++) { const px = rand(40, 216), py = rand(150, 256); if (Math.hypot((px - 128) / 95, (py - 150) / 110) < 1 && Math.hypot((px - 128) / 40, (py - 188) / 26) > 1) { x.fillStyle = `rgba(40,30,28,${rand(.25, .6)})`; x.fillRect(px, py, 1.6, 1.6); } }
+  // nose: soft, red at the tip, nostrils flared
+  ell(128, 128, 15, 22, col(.9)); ell(128, 142, 17, 11, 'rgba(220,80,80,.35)'); ell(119, 148, 4.5, 3, 'rgba(60,25,25,.85)', .3); ell(137, 148, 4.5, 3, 'rgba(60,25,25,.85)', -.3);
+  // eyes
+  const ey = 98, ex = 44, er = o.eyeR || 16, lids = o.lids ?? .25;
+  for (const sx of [-1, 1]) {
+    const cx = 128 + sx * ex, r = er * (sx > 0 && o.wonky ? .82 : 1), ry = r * .8;
+    ell(cx, ey, r, ry, '#f4f0ea');
+    x.strokeStyle = 'rgba(200,40,40,.55)'; x.lineWidth = 1;
+    for (let i = 0; i < 5; i++) { x.beginPath(); const a = rand(6.3); x.moveTo(cx + Math.cos(a) * r, ey + Math.sin(a) * ry); x.quadraticCurveTo(cx + Math.cos(a) * r * .55 + rand(-4, 4), ey + Math.sin(a) * ry * .5, cx + Math.cos(a) * r * .35, ey + Math.sin(a) * ry * .35); x.stroke(); }
+    const ox = (sx > 0 && o.wonky ? rand(-6, 6) : rand(-2, 2)), oy = o.rolled ? -ry * .55 : rand(-2, 3);
+    ell(cx + ox, ey + oy, r * .5, r * .5, o.iris || pick(['#5a3a22', '#3d6a8a', '#4b7a3a', '#2a2a2a']));
+    ell(cx + ox, ey + oy, r * (o.dilated ? .4 : .24), r * (o.dilated ? .4 : .24), '#0a0606');
+    ell(cx + ox - r * .18, ey + oy - r * .2, r * .13, r * .11, 'rgba(255,255,255,.9)');
+    x.save(); x.beginPath(); x.ellipse(cx, ey, r + 1, ry + 1, 0, 0, 6.3); x.clip(); x.fillStyle = col(.86); x.fillRect(cx - r - 2, ey - ry - 2, r * 2 + 4, ry * 2 * lids + 2); x.restore();
+    x.strokeStyle = 'rgba(70,40,40,.7)'; x.lineWidth = 2; x.beginPath(); x.ellipse(cx, ey, r, ry, 0, Math.PI, 2 * Math.PI); x.stroke();
+    x.strokeStyle = 'rgba(55,35,25,.9)'; x.lineWidth = 5; x.lineCap = 'round'; x.beginPath();
+    const tilt = (o.browTilt || 0) * sx; x.moveTo(cx - r - 4, ey - ry - 12 + tilt * 6); x.quadraticCurveTo(cx, ey - ry - 24 - (o.browUp || 0), cx + r + 4, ey - ry - 12 - tilt * 6); x.stroke();
+  }
+  // mouth: open, wet, a tooth missing, tongue lolling
+  const my = 188, mw = 30 * (o.mouthW || 1), mh = 20 * (o.mouthH || 1);
+  ell(128, my, mw + 3, mh + 3, 'rgba(150,60,70,.9)'); ell(128, my, mw, mh, '#3a0a10');
+  x.fillStyle = '#f0ead8'; const n = 7, tw = (mw * 2) / n;
+  for (let i = 0; i < n; i++) { if (o.gap && i === (o.gap | 0)) continue; x.fillRect(128 - mw + i * tw + 1, my - mh + 1, tw - 2, mh * .45); }
+  if (o.tongue) { ell(128 + rand(-6, 6), my + mh * .55, mw * .55, mh * .9, '#d8506a'); ell(128, my + mh * .3, mw * .3, mh * .3, 'rgba(255,150,170,.5)'); }
+  else ell(128, my + mh * .45, mw * .7, mh * .5, '#c04860');
+  // drool and sweat
+  x.strokeStyle = 'rgba(215,240,255,.8)'; x.lineWidth = 3.5; x.lineCap = 'round';
+  for (const sx of [-1, 1]) if (Math.random() < .8) { const dx = 128 + sx * mw * .8; x.beginPath(); x.moveTo(dx, my + mh * .6); x.quadraticCurveTo(dx + sx * 6, my + 50, dx + sx * 4, 256); x.stroke(); ell(dx + sx * 5, my + rand(35, 60), 4, 6, 'rgba(215,240,255,.85)'); }
+  for (let i = 0; i < 14; i++) ell(rand(50, 206), rand(20, 70), rand(1.5, 3.5), rand(2, 5), 'rgba(255,255,255,.55)');
+  for (let i = 0; i < 3; i++) { const px = rand(60, 196); x.strokeStyle = 'rgba(200,230,255,.5)'; x.lineWidth = 2; x.beginPath(); x.moveTo(px, rand(20, 50)); x.lineTo(px + rand(-3, 3), rand(70, 110)); x.stroke(); }
+  const sh = x.createRadialGradient(128, 60, 5, 128, 60, 70); sh.addColorStop(0, 'rgba(255,255,255,.35)'); sh.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = sh; x.fillRect(0, 0, S, 130);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+// A plane bulged into a dome, so a painted face keeps its proportions.
+function domeFace(w, h, R) {
+  const g = new THREE.PlaneGeometry(w, h, 14, 16), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setZ(i, Math.sqrt(Math.max(0, R * R - x * x - y * y * .8)) - R * .35); }
+  g.computeVertexNormals(); return g;
 }
 const TEX = { ground: groundTexture(), blob: blobTexture() };
 
@@ -770,15 +841,17 @@ function buildCultist(o = {}) {
   // head
   const h = [];
   h.push(piece(BASE.sph, suit, [0, .25, -.03], [0, 0, 0], [.34, .35, .35], mangy));
-  h.push(piece(BASE.tor, suitDark, [0, .23, .22], [.15, 0, 0], [.24, .27, .18]));
-  h.push(piece(BASE.sph, face, [0, .22, .16], [0, 0, 0], [.23, .25, .2]));
-  if (o.led) { for (const sx of [1, -1]) { const e = eyeMesh(o.led, .09); e.position.set(sx * .12, .3, .32); R.head.add(e); } }
-  else for (const sx of [1, -1]) {
-    h.push(piece(BASE.sph, 0xffffff, [sx * .11, .29, .3], [0, 0, 0], sx > 0 ? .085 : .07));
-    h.push(piece(BASE.sphLo, 0x111111, [sx * .11 + rand(-.03, .03), .29 + rand(-.03, .03), .375], [0, 0, 0], sx > 0 ? .035 : .028));
+  h.push(piece(BASE.tor, suitDark, [0, .23, .2], [.15, 0, 0], [.25, .28, .16]));
+  h.push(piece(BASE.sph, face, [0, .22, .12], [0, 0, 0], [.23, .26, .2]));   // the back of the head inside the hood
+  {
+    const fo = o.faceOpts || { stubble: Math.random() < .5, lids: rand(0, .45), dilated: Math.random() < .6, wonky: Math.random() < .5, tongue: Math.random() < .4, rolled: Math.random() < .2, mouthW: rand(.8, 1.2), mouthH: rand(.7, 1.4), gap: Math.random() < .35 ? randi(1, 5) : 0, browTilt: rand(-1, 1), browUp: rand(0, 10) };
+    const fm = new THREE.Mesh(domeFace(.46, .52, .34), new THREE.MeshToonMaterial({ map: faceTexture(fo), gradientMap }));
+    fm.position.set(0, .22, .1); fm.castShadow = true; R.head.add(fm); R.face = fm;
+    const wet = new THREE.MeshToonMaterial({ color: 0xdff4ff, gradientMap, transparent: true, opacity: .8 });
+    if (fo.tongue) { const tg = new THREE.Mesh(new THREE.CapsuleGeometry(.045, .1, 3, 8), new THREE.MeshToonMaterial({ color: 0xd8506a, gradientMap })); tg.position.set(0, .1, .35); tg.rotation.x = 1.2; R.head.add(tg); }
+    if (Math.random() < .7) for (const sx of [1, -1]) if (Math.random() < .7) { const d = new THREE.Mesh(new THREE.CapsuleGeometry(.014, rand(.08, .2), 2, 6), wet); d.position.set(sx * .09, .02, .31); R.head.add(d); }
   }
-  h.push(piece(BASE.sphLo, 0x111111, [0, .17, .36], [0, 0, 0], .045));
-  h.push(piece(BASE.box, 0x2a0a0a, [0, .09, .35], [0, 0, 0], [.16, .03, .03]));
+  if (o.led) for (const sx of [1, -1]) { const e = eyeMesh(o.led, .09); e.position.set(sx * .12, .3, .32); R.head.add(e); }
   if (o.whiskers) for (const sx of [1, -1]) for (let i = -1; i <= 1; i++) h.push(piece(BASE.box, 0x1a1a3a, [sx * .22, .16 + i * .04, .33], [0, 0, i * .2], [.24, .012, .012]));
   const inner = 0xffb0d0;
   if (ears === 'bunny') for (const sx of [1, -1]) {
@@ -919,7 +992,7 @@ function screenSplat() {
 
 // ---------- input ----------
 const keys = {}; const mouse = { x: 0, y: 0, l: false, r: false };
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyM' && master) master.gain.value = master.gain.value > 0 ? 0 : .32; });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') e.preventDefault(); if (e.code === 'KeyM' && master) { master.gain.value = master.gain.value > 0 ? 0 : .32; TTS.muted = master.gain.value === 0; if (TTS.muted && TTS.ok) speechSynthesis.cancel(); } });
 addEventListener('keyup', e => keys[e.code] = false);
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { if (AC && AC.state !== 'running') AC.resume(); });
 let yaw = 0, pitch = 0, yawVel = 0;
@@ -1226,7 +1299,7 @@ function updateProjectiles(dt) {
 
 // ---------- enemies ----------
 const SUITS = [0xf7a8c4, 0xc9a8f7, 0xa8d8f7, 0xa8f7c8, 0xfff0b0, 0xffc8a0, 0xffffff, 0xd0d0d0];
-const CULT_LINES = ['hewwo :3', 'free hugs?', 'OwO what\'s this', 'let me nuzzle you', 'we just want to be soft', 'join the warren', 'you smell like a friend', 'hold still, it\'s cuddle time', 'boop', 'UwU', 'pet me. PET ME.', '*wags menacingly*', 'the suit breathes for me now', 'no bites, promise', 'it\'s warm in here'];
+const CULT_LINES = ['hewwo :3', 'free hugs?', 'OwO what\'s this', 'let me nuzzle you', 'we just want to be soft', 'join the warren', 'you smell like a friend', 'hold still, it\'s cuddle time', 'boop', 'UwU', 'pet me. PET ME.', '*wags menacingly*', 'the suit breathes for me now', 'no bites, promise', 'it\'s warm in here', 'spank me, daddy. woof woof.', 'who\'s a good boy? me. I\'m a good boy.', 'I\'ve been a naughty puppy', 'do you like my tail? it\'s detachable', 'my safe word is Thragg', 'nuzzle me, you brute', 'ooh, big orc. big strong orc.', 'scratch behind my ears and nobody gets hurt', 'I\'m not wearing anything under this', 'woof. woof. I said woof.'];
 const PELT_LINES = ['Me dog now. Woof. WOOF.', 'Thragg! Join da pack! Is warm in here!', 'Dey scratched me behind da ear, Thragg.', 'I IS A GOOD BOY.', 'Why you not wag, Thragg? WAG.', 'Da fur is soft, brudda. Soft.', 'Nobody ever pet me before.', 'Sit. SIT, Thragg.'];
 const DEATH_LINES = ['oh no. woof.', 'I\'m too cute to die', 'but I\'m cuddly...', 'tell my fursona I loved her', 'not the face, it\'s rented', 'hewwo... goodbye', '*dies softly*', 'who will pet me now', 'worth it :3', 'I regret the suit', 'this is not what the forum said', 'do I still get the badge', 'mum was right', 'nooo my paws', 'I only wanted a hug', 'OwO... *dead*', 'I can\'t feel my tail', 'unzip me. UNZIP ME.'];
 const PELT_DEATH_LINES = ['Woof... ugh.', 'Tell da pack... I was good boy.', 'Should\'ve wagged...', 'Me not dog. Me sorry, Thragg.', 'Da ear scratches... worth it.', 'Bad boy. I is bad boy.'];
@@ -1277,6 +1350,7 @@ function updateEnemies(dt) {
     if (e.burning > 0) { e.burning -= dt; damageEnemy(e, 9 * dt, null, 'burn'); if (Math.random() < .6) fire.emit(e.pos.clone().add(V3(rand(-.4, .4), rand(.3, e.rig.height), rand(-.4, .4))), V3(rand(-.5, .5), 2.5, rand(-.5, .5)), .5, 1); }
     if (e.stagger > 0) { e.stagger -= dt; }
     else if (e.state === 'enter') { speed = e.speed * .6; e.pos.addScaledVector(dirP, dt * speed); e.face.copy(dirP); if (e.t > 1.6) e.state = 'chase'; }
+    else if (e.state === 'pose') { speed = 0; }
     else if (e.state === 'chase') {
       e.face.lerp(dirP, Math.min(1, dt * 6));
       if (e.atkCd > 0) e.atkCd -= dt;
@@ -1327,9 +1401,13 @@ function updateEnemies(dt) {
     if (e.stagger > 0) R.torso.rotation.x = -.35;
     e.sayT -= dt; if (e.sayT <= 0 && dist < 26) {
       say(e.rig, pick(e.lines), e.orc); e.sayT = e.boss ? e.sayEvery : rand(5, 14);
-      if (e.boss && e.kind !== 'steve' && e.kind !== 'nigel') play('troll', { vol: .8, rate: e.kind === 'gary' ? .75 : 1, vary: .1, gap: 800 });
-      else if (e.orc) play('bark', { vol: .7, rate: .8, vary: .15, gap: 300 });
-      else if (Math.random() < .6) play('cute', { vol: .5, rate: rand(.8, 1.3), vary: 0, gap: 250 });
+      const line = bubbles.length ? bubbles[bubbles.length - 1].el.textContent : '';
+      if (e.kind === 'steve') speak(line, { pitch: .55, rate: .75, deep: true, gap: 800 });
+      else if (e.kind === 'gary') { if (!speak(line, { pitch: .4, rate: .8, deep: true, gap: 800 })) play('troll', { vol: .8, rate: .75, vary: .1, gap: 800 }); }
+      else if (e.kind === 'jeffrey') speak(line, { pitch: 1.8, rate: 1.1, gap: 600 });
+      else if (e.boss) play('troll', { vol: .8, rate: 1, vary: .1, gap: 800 });
+      else if (e.orc) { if (!speak(line, { pitch: .35, rate: .85, deep: true, gap: 700 })) play('bark', { vol: .7, rate: .8, vary: .15, gap: 300 }); }
+      else if (!speak(line, { pitch: rand(1.5, 1.9), rate: rand(.95, 1.15), gap: 500 })) play('cute', { vol: .5, rate: rand(.8, 1.3), vary: 0, gap: 250 });
     }
   }
 }
@@ -1351,7 +1429,7 @@ function damageEnemy(e, dmg, knock, kind, credit = true) {
   if (e.dead) return;
   e.hp -= dmg;
   if (knock) { e.vel.add(knock.clone().multiplyScalar(e.boss ? .25 : 1)); if (!e.boss || Math.random() < .15) { e.stagger = Math.max(e.stagger, e.boss ? .15 : .3); if (e.state === 'windup' || e.state === 'lunge') { e.state = 'chase'; hugPose(e.rig, 0); e.rig.anim.lockArms = false; } } }
-  if (kind !== 'burn') { bloodBurst(e.pos.clone().add(V3(0, e.rig.height * .55, 0)), kind === 'shot' ? 6 : 12, kind === 'shot' ? 5 : 7, knock ? knock.clone().normalize() : null); if (e.hp > 0 && Math.random() < .5) grunt(e.orc); }
+  if (kind !== 'burn') { bloodBurst(e.pos.clone().add(V3(0, e.rig.height * .55, 0)), kind === 'shot' ? 6 : 12, kind === 'shot' ? 5 : 7, knock ? knock.clone().normalize() : null); if (e.hp > 0 && Math.random() < .5) { if (e.orc || e.boss || !speak(pick(HIT_LINES), { pitch: rand(1.5, 1.9), rate: 1.2, gap: 260 })) grunt(e.orc); } }
   if (e.boss) { $('bossfill').style.width = Math.max(0, e.hp / e.maxHp * 100) + '%'; }
   if (e.hp <= 0) killEnemy(e, kind, credit);
 }
@@ -1366,7 +1444,9 @@ function killEnemy(e, kind, credit = true) {
   let flungHead = null;
   const fling = (part, power = 1) => { const d = detach(R, part, hitDir.clone().multiplyScalar(rand(4, 9) * power).add(V3(rand(-3, 3), rand(5, 10) * power, rand(-3, 3))), rand(4, 10)); if (part === 'head') flungHead = d; return d; };
   // last words, from the corpse or from wherever the head lands
-  setTimeout(() => { const line = e.boss ? BOSS_DEATH_LINES[e.kind] : pick(e.orc ? PELT_DEATH_LINES : DEATH_LINES); const anchor = flungHead && flungHead.parent ? { root: flungHead, headY: .2 } : { root: R.root, headY: e.rig.height * .35 }; if (anchor.root.parent && Math.random() < (e.boss ? 1 : .75)) say(anchor, line, e.orc, 2.4); }, 60);
+  const spoken = !e.boss && !e.orc && Math.random() < .5 ? pick(SPOKEN_DEATHS) : null;
+  if (spoken) e.silentDeath = speak(spoken, { pitch: rand(1.5, 1.9), rate: rand(.95, 1.15), gap: 200 });
+  setTimeout(() => { const line = e.boss ? BOSS_DEATH_LINES[e.kind] : spoken || pick(e.orc ? PELT_DEATH_LINES : DEATH_LINES); const anchor = flungHead && flungHead.parent ? { root: flungHead, headY: .2 } : { root: R.root, headY: e.rig.height * .35 }; if (anchor.root.parent && (spoken || Math.random() < (e.boss ? 1 : .75))) say(anchor, line, e.orc, 2.4); if (e.boss) speak(line, e.kind === 'jeffrey' ? { pitch: 1.8, rate: 1 } : { pitch: e.kind === 'gary' ? .4 : .55, rate: .7, deep: true, gap: 0 }); }, 60);
   if (kind === 'melt') {
     for (let i = 0; i < 30; i++) sparks.emit(e.pos.clone().add(V3(rand(-.5, .5), .2, rand(-.5, .5))), V3(rand(-3, 3), rand(2, 8), rand(-3, 3)), .5, 1.2);
     for (let i = 0; i < 10; i++) smoke.emit(e.pos, V3(rand(-1, 1), 3, rand(-1, 1)), 1.5, 2);
@@ -1379,7 +1459,7 @@ function killEnemy(e, kind, credit = true) {
     if (Math.random() < .5) fling('head', .6);
     corpse(R, hitDir); return;
   }
-  sfx('squelch', 1); addShake(.3); if (e.boss && !e.orc) play('bossScream', { vol: 1, rate: .8, vary: .1, gap: 0 }); else scream(e.rig.root.scale.x / .72, e.orc);
+  sfx('squelch', 1); addShake(.3); if (e.boss && !e.orc) play('bossScream', { vol: 1, rate: .8, vary: .1, gap: 0 }); else if (!e.silentDeath) scream(e.rig.root.scale.x / .72, e.orc);
   bloodBurst(top, 40, 9, hitDir);
   if (kind === 'explode') {
     for (const part of ['head', 'armL', 'armR', 'legL', 'legR']) fling(part, 1.6);
@@ -1550,6 +1630,7 @@ function startRound(i) {
   if (Rd.quota === 0) { banner('THE ALPHA', ARENAS[Rd.arena].name); setTimeout(() => { if (G.state === 'play') spawnBoss(Rd.boss); }, 1800); }
   else banner('ROUND ' + (i + 1), ARENAS[Rd.arena].name);
   yaw = Math.PI; pitch = 0; P.face.set(0, 0, -1); updateLockOverlay();
+  if (GALLERY) { const kinds = ['cultist', 'cultist', 'big', 'pelt', 'cultist', 'cultist']; kinds.forEach((k, i) => { const e = spawnEnemy(k, V3(-3.2 + i * 1.3, 0, 2.6)); e.state = 'pose'; e.face.set(0, 0, 1); }); const b = spawnBoss(Rd.boss); b.state = 'pose'; b.pos.set(0, 0, -2); b.face.set(0, 0, 1); }
   setTimeout(() => shout(true), 900);
 }
 function onBossDead(e) {
@@ -1596,7 +1677,7 @@ function updateRound(dt) {
   const alive = enemies.filter(e => !e.boss).length;
   const cap = G.bossPending ? 4 + G.round * 2 : 7 + G.round * 5 + Math.floor(G.elapsed / 8);
   G.spawnT -= dt;
-  if (alive < cap && G.spawnT <= 0) { G.spawnT = Math.max(.12, .5 - G.round * .08); const r = Math.random(); spawnEnemy(r < Rd.pelt ? 'pelt' : r < Rd.pelt + Rd.big ? 'big' : 'cultist'); }
+  if (alive < cap && G.spawnT <= 0 && !GALLERY) { G.spawnT = Math.max(.12, .5 - G.round * .08); const r = Math.random(); spawnEnemy(r < Rd.pelt ? 'pelt' : r < Rd.pelt + Rd.big ? 'big' : 'cultist'); }
 }
 // ---------- HUD ----------
 function updateHUD() {

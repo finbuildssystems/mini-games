@@ -56,9 +56,11 @@ Meeting the quota adds 20 seconds to the clock for the mini-boss. Run out of tim
   - **25 CC0 bang / firework SFX** by rubberduck, CC0. [Source](https://opengameart.org/content/25-cc0-bang-firework-sfx)
   - **Squish Sounds Effects** by EZduzziteh, CC0. [Source](https://opengameart.org/content/squish-sounds-effects)
   - **Fireplace Sound loop** by PagDev, CC0 (a 3.5-second slice, converted to AAC). [Source](https://opengameart.org/content/fireplace-sound-loop)
+- The Fursworn speak through the browser's built-in speech voices (a male English voice pitched up), so their taunts, yelps and last words are spoken out loud. Steve and Gary use a deep voice, the turned orcs a deeper one. What you hear depends on the voices installed on your machine; Macs and iPhones have plenty.
+- Faces are painted in code onto a domed face inside each hood: skin tone, stubble, flushed cheeks, bloodshot eyes, heavy lids, open mouths, missing teeth, tongues and drool, all randomised per cultist.
 - Keyboard and mouse only for now. Touch controls for iPad and iPhone are planned.
 - Thragg shouts on kill streaks, whirlwinds and boss arrivals; enemies get last words as they die.
 
 ## Testing shortcuts
 
-Add these to the address bar if you want to jump about while tweaking things: `?round=3` starts at round 3 with the earlier weapons unlocked, `?god` makes Thragg unkillable and multiplies his damage, `?third` switches to the older third-person camera, `?nolock` skips mouse capture (for automated testing). For example `index.html?round=5&god`.
+Add these to the address bar if you want to jump about while tweaking things: `?round=3` starts at round 3 with the earlier weapons unlocked, `?god` makes Thragg unkillable and multiplies his damage, `?third` switches to the older third-person camera, `?nolock` skips mouse capture (for automated testing), `?gallery` lines a few enemies and the round's boss up in front of you, standing still, for a good look at them. For example `index.html?round=5&god`.
