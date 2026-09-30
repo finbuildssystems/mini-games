@@ -7,6 +7,7 @@ Little games and creative experiments made with AI helpers (Claude, Codex). Kept
 | Folder | What it is | How to open it |
 | --- | --- | --- |
 | [`iq-the-best-comic`](iq-the-best-comic/) | A 30-second animated scene built from the *iQ The Best!* comic cover: the shop that never has any stock. | Open `iq-the-best-motion-comic.html` through a local web server (see its README), or view the published version on claude.ai. |
+| [`thragg-the-unbreakable`](thragg-the-unbreakable/) | A 3D arena slaughter game: a one-eyed orc warlord against a cult of people in animal suits. Timed rounds, kill quotas, named mini-bosses, dismemberment. | Open `index.html` in a browser (needs internet for Three.js). Keyboard and mouse. |
 
 ## Adding a new game
 
