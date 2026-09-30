@@ -314,7 +314,7 @@ function fireLoop(on) {
   }
 }
 // ---------- spoken lines: the browser's own speech voices, pitched up for the Fursworn ----------
-const TTS = { ok: 'speechSynthesis' in window, voice: null, muted: false, last: 0, deep: null, curPriority: -1 };
+const TTS = { ok: 'speechSynthesis' in window, voice: null, muted: false, last: 0, deep: null, q: 0 };
 function pickVoices() {
   if (!TTS.ok) return;
   const vs = speechSynthesis.getVoices(); if (!vs.length) return;
@@ -334,13 +334,16 @@ function pronounce(text) {
 }
 function speak(text, { pitch = 1.6, rate = 1.05, vol = 1, deep = false, gap = 350, priority = 0 } = {}) {
   if (!TTS.ok || TTS.muted || !AC || !TTS.voice) return false;
+  // Nobody gets cut off. A line in progress always finishes; important lines (bosses, orcs, Thragg) queue behind it, one deep; cultists only speak into silence.
   const now = performance.now();
-  if (speechSynthesis.speaking || speechSynthesis.pending) { if (priority <= TTS.curPriority) return false; speechSynthesis.cancel(); }
-  else if (now - TTS.last < gap && priority === 0) return false;
-  TTS.last = now; TTS.curPriority = priority;
+  if (!speechSynthesis.speaking && !speechSynthesis.pending) TTS.q = 0;   // the engine occasionally forgets to report an ending
+  if (TTS.q >= 1 && priority === 0) return false;
+  if (TTS.q >= 2) return false;
+  if (TTS.q === 0 && now - TTS.last < gap && priority === 0) return false;
+  TTS.last = now; TTS.q++;
   const u = new SpeechSynthesisUtterance(pronounce(text));
   u.voice = deep ? TTS.deep : TTS.voice; u.pitch = clamp(pitch * rand(.94, 1.06), 0, 2); u.rate = rate * rand(.95, 1.05); u.volume = vol * (master ? master.gain.value / .32 : 1);
-  u.onend = u.onerror = () => { TTS.curPriority = -1; };
+  u.onend = u.onerror = () => { TTS.q = Math.max(0, TTS.q - 1); TTS.last = performance.now(); };
   speechSynthesis.speak(u); return true;
 }
 const HIT_LINES = ['ooh!', 'ah!', 'ouch!', 'hey!', 'not the fur!', 'ooh, again', 'rude!', 'oh my', 'mmf!', 'careful, that\'s velour', 'my tail!', 'ooh, harder'];
