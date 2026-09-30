@@ -303,11 +303,18 @@ function pickVoices() {
 }
 if (TTS.ok) { pickVoices(); speechSynthesis.onvoiceschanged = pickVoices; }
 // pitch 1.5-1.9 on a male voice gives the breathy, sing-song Fursworn delivery; bosses go the other way
+// How the Fursworn actually say their nonsense, for the speech engine. The bubbles keep the real spelling.
+const SAY_AS = [[/\bOwO\b/g, 'oh-woh'], [/\bUwU\b/g, 'oo-woo'], [/\bhewwo\b/gi, 'heh-wo'], [/\bmrr?p\b/gi, 'murp'], [/\bmrow\b/gi, 'meow'], [/\bprr+t\b/gi, 'purrt'], [/\bprr+\b/gi, 'purr'], [/\bAWOO+\b/gi, 'ah-wooooo'], [/\bmmf\b/gi, 'mmph'], [/\bfursona\b/gi, 'fur-sona'], [/\bnuzzle\b/gi, 'nuzzle'], [/\bboop\b/gi, 'boop'], [/\bwoof\b/gi, 'woof']];
+function pronounce(text) {
+  let t = text.replace(/\*([^*]+)\*/g, '$1').replace(/:3|\(|\)|_/g, '');
+  for (const [re, say] of SAY_AS) t = t.replace(re, say);
+  return t.replace(/\.\.\./g, ', ').trim();
+}
 function speak(text, { pitch = 1.6, rate = 1.05, vol = 1, deep = false, gap = 350 } = {}) {
   if (!TTS.ok || TTS.muted || !AC || !TTS.voice) return false;
   const now = performance.now(); if (now - TTS.last < gap) return false; TTS.last = now;
   if (speechSynthesis.pending) speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.replace(/[*_:3()]/g, '').replace(/OwO|UwU/g, m => m.split('').join(' ')));
+  const u = new SpeechSynthesisUtterance(pronounce(text));
   u.voice = deep ? TTS.deep : TTS.voice; u.pitch = clamp(pitch * rand(.94, 1.06), 0, 2); u.rate = rate * rand(.95, 1.05); u.volume = vol * (master ? master.gain.value / .32 : 1);
   speechSynthesis.speak(u); return true;
 }
