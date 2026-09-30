@@ -49,13 +49,15 @@ Meeting the quota adds 20 seconds to the clock for the mini-boss. Run out of tim
 ## Built with
 
 - [Three.js](https://threejs.org/) r160, loaded from jsDelivr. Everything else is in `index.html`: the characters, the arenas, the war drums and the gore.
-- Recorded sound effects in `sounds/` (about 1.4 MB), all from [OpenGameArt](https://opengameart.org/):
+- Recorded sound effects and music in `sounds/` (about 2.4 MB), all from [OpenGameArt](https://opengameart.org/):
   - **Aargh! (male screams)** by congusbongus, CC-BY 3.0 — an aggregation of *Helmut Scream* by creativeheroes (CC-BY 3.0), *Male_Thijs_loud_scream* by thanvannispen (CC-BY 3.0) and *human male scream multi* by JohnsonBrandEditing (CC0). See `sounds/CREDITS-aargh.txt`. [Source](https://opengameart.org/content/aargh-male-screams)
   - **80 CC0 creature SFX** by rubberduck, CC0. [Source](https://opengameart.org/content/80-cc0-creature-sfx)
   - **Swishes Sound Pack** by artisticdude, CC0 (converted to AAC). [Source](https://opengameart.org/content/swishes-sound-pack)
   - **25 CC0 bang / firework SFX** by rubberduck, CC0. [Source](https://opengameart.org/content/25-cc0-bang-firework-sfx)
   - **Squish Sounds Effects** by EZduzziteh, CC0. [Source](https://opengameart.org/content/squish-sounds-effects)
   - **Fireplace Sound loop** by PagDev, CC0 (a 3.5-second slice, converted to AAC). [Source](https://opengameart.org/content/fireplace-sound-loop)
+  - **Horde War Drums loop** by William Hector, CC0 (converted to AAC): the music during rounds. [Source](https://opengameart.org/content/horde-war-drums-loop)
+  - **Boss Battle #2 [Symphonic Metal]** by nene, CC0 (converted to AAC): the music when a boss arrives. [Source](https://opengameart.org/content/boss-battle-2-symphonic-metal)
 - The Fursworn speak through the browser's built-in speech voices (a male English voice pitched up), so their taunts, yelps and last words are spoken out loud. Steve and Gary use a deep voice, the turned orcs a deeper one. What you hear depends on the voices installed on your machine; Macs and iPhones have plenty.
 - Faces are painted in code onto a domed face inside each hood: skin tone, stubble, flushed cheeks, bloodshot eyes, heavy lids, open mouths, missing teeth, tongues and drool, all randomised per cultist.
 - Keyboard and mouse only for now. Touch controls for iPad and iPhone are planned.
