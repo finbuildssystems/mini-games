@@ -8,7 +8,9 @@ Every character is built from separate body parts, so heads, arms, legs and tors
 
 ## How to run it
 
-Serve the repository folder with a local web server and open the game from there. It needs an internet connection the first time, because the Three.js library is loaded from a CDN. (Opening `index.html` straight from the file system works in some browsers, but most block the sound files from loading that way.)
+**Play it online: [finbuildssystems.github.io/mini-games/thragg-the-unbreakable](https://finbuildssystems.github.io/mini-games/thragg-the-unbreakable/)** (desktop browser, keyboard and mouse).
+
+To run it from your own copy: Serve the repository folder with a local web server and open the game from there. It needs an internet connection the first time, because the Three.js library is loaded from a CDN. (Opening `index.html` straight from the file system works in some browsers, but most block the sound files from loading that way.)
 
 ```bash
 python3 -m http.server 8000
